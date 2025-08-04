@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Detection</title>
+  <style>
+    video, canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: auto;
+    }
+    #output {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 18px;
+      background-color: rgba(0,0,0,0.5);
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <video id="input_video" autoplay muted></video>
+  <canvas id="output_canvas"></canvas>
+  <div id="output">Show your hand</div>
+
+  <!-- Mediapipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <script>
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const outputText = document.getElementById('output');
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.6,
+    });
+
+    hands.onResults((results) => {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.multiHandLandmarks.length > 0) {
+        for (const landmarks of results.multiHandLandmarks) {
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 3});
+          drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+
+          // Send landmarks to backend (example)
+          const coordinates = landmarks.map(l => ({x: l.x, y: l.y, z: l.z}));
+          console.log("Landmarks:", coordinates);
+
+          // Optionally send to backend
+          // fetch("http://your-api-url/gesture", {
+          //   method: "POST",
+          //   headers: {"Content-Type": "application/json"},
+          //   body: JSON.stringify({ landmarks: coordinates })
+          // });
+
+          outputText.innerText = "Hand Detected!";
+        }
+      } else {
+        outputText.innerText = "Show your hand";
+      }
+
+      canvasCtx.restore();
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: "500px",
+      height: "500px",
+    });
+    camera.start();
+  </script>
+</body>
+</html>
